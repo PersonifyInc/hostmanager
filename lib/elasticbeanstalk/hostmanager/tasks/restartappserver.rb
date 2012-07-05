@@ -13,6 +13,8 @@ module ElasticBeanstalk
 
           # Bluepill will restart Apache
           ElasticBeanstalk::HostManager::Utils::ApacheUtil.restart
+          # Run app restart script
+          ElasticBeanstalk::HostManager::Applications::CustomApplication.restart
 
           generate_response(:deferred)
         end

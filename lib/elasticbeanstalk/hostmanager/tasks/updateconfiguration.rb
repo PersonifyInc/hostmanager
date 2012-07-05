@@ -67,6 +67,12 @@ module ElasticBeanstalk
                 # Restart Apache
                 logger.info('Restarting Apache')
                 ElasticBeanstalk::HostManager::Utils::ApacheUtil.stop
+
+                logger.info('Update custom application config')
+                ElasticBeanstalk::HostManager::Applications::CustomApplication.update_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])
+
+                # Restart app servers
+                ElasticBeanstalk::HostManager::Applications::CustomApplication.restart
               end
             rescue
               error_msg = "Failed to update config from #{config_ver_url}: #{$!}"

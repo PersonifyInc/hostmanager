@@ -50,11 +50,8 @@ ElasticBeanstalk::HostManager::Server.register_post_init_block {
   ElasticBeanstalk::HostManager.log 'Updating Apache options'
   ElasticBeanstalk::HostManager::Utils::ApacheUtil.update_httpd_conf(ElasticBeanstalk::HostManager.config.container['Php.ini Settings'])
 
-  # Deploy app, will only deploy if it hasn't been yet
-  ElasticBeanstalk::HostManager::DeploymentManager.deploy(ElasticBeanstalk::HostManager::Applications::PHPApplication.new(ElasticBeanstalk::HostManager.config.application_version))
-
   # Deploy app or just startup app server.
-  application = ElasticBeanstalk::HostManager::Applications::PHPApplication.new(ElasticBeanstalk::HostManager.config.application_version)
+  application = ElasticBeanstalk::HostManager::Applications::CustomApplication.new(ElasticBeanstalk::HostManager.config.application_version)
   if ElasticBeanstalk::HostManager::DeploymentManager.should_deploy(application)
     ElasticBeanstalk::HostManager.log("Starting initial version deployment.")
     ElasticBeanstalk::HostManager::DeploymentManager.deploy(application)
@@ -62,5 +59,15 @@ ElasticBeanstalk::HostManager::Server.register_post_init_block {
   else
     ElasticBeanstalk::HostManager.log("Version already deployed. Starting tomcat.")
     ElasticBeanstalk::HostManager::Utils::BluepillUtil.start_target("httpd")
+  end
+
+  ElasticBeanstalk::HostManager.log 'Update custom application config'
+  ElasticBeanstalk::HostManager::Applications::CustomApplication.update_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])
+
+  # Start application servers
+  begin
+  	ElasticBeanstalk::HostManager::Applications::CustomApplication.start
+  rescue Exception => e
+  	ElasticBeanstalk::HostManager.log 'tried to start old app version'
   end
 }
