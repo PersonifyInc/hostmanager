@@ -17,25 +17,28 @@
 module ElasticBeanstalk
   module HostManager
     module Utils
-    
+
       class BluepillUtil
         @bluepill_cmd    = '/usr/bin/sudo /opt/elasticbeanstalk/bin/bluepill'
         @bluepill_config = '/opt/elasticbeanstalk/srv/hostmanager/config/hostmanager.pill'
-        
+
         def self.status
+          Event.store('BluepillUtil', 'Checking Bluepill status', :info, [ :milestone, :apache ], false)
           `#{@bluepill_cmd} status`.chomp
         end
 
         def self.start_target(target)
+          Event.store('BluepillUtil', 'Starting Bluepill target', :info, [ :milestone, :apache ], false)
           return if target.nil? || target.empty?
           `#{@bluepill_cmd} start #{target}`.chomp
         end
-        
+
         def self.stop_target(target)
+          Event.store('BluepillUtil', 'Stopping Bluepill target', :info, [ :milestone, :apache ], false)
           return if target.nil? || target.empty?
           `#{@bluepill_cmd} stop #{target}`.chomp
         end
-        
+
         def self.start
           # Log event for bluepill start
           Event.store('BluepillUtil', 'Starting Bluepill', :info, [ :milestone, :bluepill ], false)
@@ -44,12 +47,13 @@ module ElasticBeanstalk
           # Log event for bluepill startup completion
           Event.store('BluepillUtil', 'Bluepill startup complete', :info, [ :milestone, :bluepill ], false)
         end
-        
+
         def self.quit
+          Event.store('BluepillUtil', 'Quitting Bluepill', :info, [ :milestone, :bluepill ], false)
           `#{@bluepill_cmd} quit`.chomp
         end
       end
-    
+
     end ## Utils module
   end ## HostManager module
 end ## ElasticBeanstalk module

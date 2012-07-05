@@ -25,6 +25,13 @@ module ElasticBeanstalk
       @current_deployments  = {}
       @pending_healthchecks = {}
 
+      def self.should_deploy(application)
+        return false if application.nil?
+        return false if application.version_info.deployed
+
+        return true
+      end
+
       def self.deploy(application)        
         return if application.nil?
 

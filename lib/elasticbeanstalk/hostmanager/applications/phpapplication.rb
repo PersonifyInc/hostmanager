@@ -132,19 +132,21 @@ set +e
 if [ "$?" -ne 0 -a "$?" -ne 1 ]; then logmsg "Failed to unzip application"; exit 1; fi
 set -e
 
-logmsg "Fixing new app permissions"
-/usr/bin/sudo /bin/chown -Rf elasticbeanstalk:elasticbeanstalk #{PHPApplication.deploy_dir}/application
-/usr/bin/sudo /bin/chmod -Rf 0755 #{PHPApplication.deploy_dir}/application
-/bin/find #{PHPApplication.deploy_dir}/application -type f -print0 | /usr/bin/xargs -0 /bin/chmod 0644
-
 if [ "$(ls -A #{PHPApplication.web_root_dir})" ]; then
     logmsg "Nuking the old web root"
     /usr/bin/sudo rm -Rf #{PHPApplication.web_root_dir}/
     /usr/bin/sudo mkdir -p #{PHPApplication.web_root_dir}/
+    /usr/bin/sudo chown -Rf elasticbeanstalk:elasticbeanstalk #{PHPApplication.web_root_dir}
+    /usr/bin/sudo chmod -Rf 0755 #{PHPApplication.web_root_dir}
 fi
 
 logmsg "Moving new web root into place"
 /usr/bin/sudo mv -n #{PHPApplication.deploy_dir}/application/{,.}?* #{PHPApplication.web_root_dir}
+
+logmsg "Fixing new app permissions"
+/usr/bin/sudo /bin/chown -Rf elasticbeanstalk:elasticbeanstalk #{PHPApplication.web_root_dir}
+/usr/bin/sudo /bin/chmod -Rf 0755 #{PHPApplication.web_root_dir}
+/bin/find #{PHPApplication.web_root_dir} -type f -print0 | /usr/bin/xargs -0 /bin/chmod 0644
 
 logmsg "Deployment complete"
 END_DEPLOY_SCRIPT

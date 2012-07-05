@@ -26,6 +26,7 @@ module ElasticBeanstalk
         @env_ini_file = '/etc/php.d/environment.ini'
 
         def self.update_php_ini(php_options)
+          Event.store(:php, 'Updating custom.ini', :info, [ :milestone, :php ], false)
           return if php_options.nil?
 
           new_options_section = []
@@ -44,6 +45,7 @@ module ElasticBeanstalk
         end
 
         def self.write_sdk_config(env_props)
+          Event.store(:php, 'Updating environment.ini', :info, [ :milestone, :php ], false)
           return if env_props.nil?
 
           # log the values
@@ -68,7 +70,6 @@ module ElasticBeanstalk
           tmp_file.close
         end
       end
-
     end
   end
 end
