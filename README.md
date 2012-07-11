@@ -40,3 +40,12 @@ A basic application should consist of the following:
 	- shutdown.sh (stop app servers)
 	- startup.sh (start app servers)
 - application source (anything!)
+
+## Installing custom HostManager
+1. Launch an existing Beanstalk AMI in EC2 (NOT THROUGH BEANSTALK)
+2. Zip up this directory
+3. Use wget or scp to move it to your server
+4. Unzip and enter directory
+5. Add execute perms to deploy.sh and run
+6. Use EC2 to roll a new AMI
+7. Done!
