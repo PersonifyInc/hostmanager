@@ -23,6 +23,7 @@ require 'elasticbeanstalk/hostmanager/models/filepublication'
 require 'elasticbeanstalk/hostmanager/models/metric'
 require 'elasticbeanstalk/hostmanager/models/version'
 require 'elasticbeanstalk/hostmanager/utils/apacheutil'
+require 'elasticbeanstalk/hostmanager/utils/bluepillutil'
 require 'elasticbeanstalk/hostmanager/utils/ec2util'
 require 'elasticbeanstalk/hostmanager/utils/phputil'
 
@@ -51,4 +52,15 @@ ElasticBeanstalk::HostManager::Server.register_post_init_block {
 
   # Deploy app, will only deploy if it hasn't been yet
   ElasticBeanstalk::HostManager::DeploymentManager.deploy(ElasticBeanstalk::HostManager::Applications::PHPApplication.new(ElasticBeanstalk::HostManager.config.application_version))
+
+  # Deploy app or just startup app server.
+  application = ElasticBeanstalk::HostManager::Applications::PHPApplication.new(ElasticBeanstalk::HostManager.config.application_version)
+  if ElasticBeanstalk::HostManager::DeploymentManager.should_deploy(application)
+    ElasticBeanstalk::HostManager.log("Starting initial version deployment.")
+    ElasticBeanstalk::HostManager::DeploymentManager.deploy(application)
+    ElasticBeanstalk::HostManager::Utils::BluepillUtil.start_target("httpd")
+  else
+    ElasticBeanstalk::HostManager.log("Version already deployed. Starting tomcat.")
+    ElasticBeanstalk::HostManager::Utils::BluepillUtil.start_target("httpd")
+  end
 }

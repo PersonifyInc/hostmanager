@@ -66,8 +66,7 @@ module ElasticBeanstalk
       def sync_config(config_ver=version)
         config_url = config_ver.to_url
 
-        encrypted_config_result = 
-          ElasticBeanstalk::HostManager::Utils::S3Util.get(config_url)
+        encrypted_config_result = ElasticBeanstalk::HostManager::Utils::S3Util.get(config_url)
 
         raise "Error downloading encrypted config version (#{config_url}): empty result" if encrypted_config_result.nil? || 
                                                                                             encrypted_config_result[:response].nil? || 
@@ -82,14 +81,17 @@ module ElasticBeanstalk
         parse_options(JSON.parse(decrypted_config))  
 
         latest_app = application_version
-        latest_app_version = latest_app.nil? ? '' : latest_app.version
-
-        Version.store(:application, @config.elasticbeanstalk['Application']) if (@config.elasticbeanstalk['Application']['s3key'] &&
+        if (latest_app.nil?)
+          ElasticBeanstalk::HostManager.log("Using application from configuration file.")
+          Version.store(:application, @config.elasticbeanstalk['Application']) if (@config.elasticbeanstalk['Application']['s3key'] &&
                                                                          @config.elasticbeanstalk['Application']['s3version'] &&
-                                                                         @config.elasticbeanstalk['Application']['s3version'] != latest_app_version &&
                                                                          @config.elasticbeanstalk['Application']['queryParams'] &&
                                                                          @config.elasticbeanstalk['Application']['s3bucket'] &&
                                                                          @config.elasticbeanstalk['Application']['digest'])
+
+        else 
+          ElasticBeanstalk::HostManager.log("Using existing application version from database.")
+        end
 
         config_ver.update(:deployed => true)
       end

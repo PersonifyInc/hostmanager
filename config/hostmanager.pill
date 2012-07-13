@@ -31,7 +31,8 @@ Bluepill.application('hostmanager', :log_file => "#{ELASTICBEANSTALK_HOME}/var/l
     httpd_process.start_grace_time = 30.seconds
     httpd_process.stop_grace_time = 30.seconds
     httpd_process.restart_grace_time = 60.seconds
-  end 
+    httpd_process.auto_start = false
+  end
 
   app.process('thin') do |thin_process|
     thin_process.start_command = "bin/thin -C #{THIN_CONFIG} -R #{RACK_CONFIG} start"

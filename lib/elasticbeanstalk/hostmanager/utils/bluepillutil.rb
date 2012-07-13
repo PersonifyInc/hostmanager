@@ -24,17 +24,20 @@ module ElasticBeanstalk
 
         def self.status
           Event.store('BluepillUtil', 'Checking Bluepill status', :info, [ :milestone, :apache ], false)
+          HostManager.log 'Checking Bluepill status'
           `#{@bluepill_cmd} status`.chomp
         end
 
         def self.start_target(target)
           Event.store('BluepillUtil', 'Starting Bluepill target', :info, [ :milestone, :apache ], false)
+          HostManager.log 'Starting Bluepill target'
           return if target.nil? || target.empty?
           `#{@bluepill_cmd} start #{target}`.chomp
         end
 
         def self.stop_target(target)
           Event.store('BluepillUtil', 'Stopping Bluepill target', :info, [ :milestone, :apache ], false)
+          HostManager.log 'Stopping Bluepill target'
           return if target.nil? || target.empty?
           `#{@bluepill_cmd} stop #{target}`.chomp
         end
@@ -42,6 +45,7 @@ module ElasticBeanstalk
         def self.start
           # Log event for bluepill start
           Event.store('BluepillUtil', 'Starting Bluepill', :info, [ :milestone, :bluepill ], false)
+          HostManager.log 'Starting Bluepill'
           `#{@bluepill_cmd} load #{@bluepill_config}`.chomp
 
           # Log event for bluepill startup completion
@@ -50,6 +54,7 @@ module ElasticBeanstalk
 
         def self.quit
           Event.store('BluepillUtil', 'Quitting Bluepill', :info, [ :milestone, :bluepill ], false)
+          HostManager.log 'Quitting Bluepill'
           `#{@bluepill_cmd} quit`.chomp
         end
       end

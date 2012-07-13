@@ -22,6 +22,7 @@ module ElasticBeanstalk
         def self.start
           # Log event for Apache start
           Event.store(:apache, 'Starting Apache', :info, [ :milestone, :apache ], false)
+          HostManager.log 'Starting Apache'
 
           output = `/usr/bin/sudo /etc/init.d/httpd start`
 
@@ -36,6 +37,8 @@ module ElasticBeanstalk
         end
 
         def self.stop
+          Event.store(:apache, 'Stopping Apache', :info, [ :milestone, :apache ], false)
+          HostManager.log 'Stopping Apache'
           output = `/usr/bin/sudo /etc/init.d/httpd stop`
 
           if ($?.exitstatus != 0 || output =~ /FAILED/)
@@ -48,6 +51,8 @@ module ElasticBeanstalk
         end
 
         def self.restart
+          Event.store(:apache, 'Restarting Apache', :info, [ :milestone, :apache ], false)
+          HostManager.log 'Restarting Apache'
           stop
           start
         end
@@ -58,6 +63,9 @@ module ElasticBeanstalk
 
         def self.update_httpd_conf(httpd_options)
           return if httpd_options.nil?
+
+          Event.store(:apache, 'Updating Apache configuration', :info, [ :milestone, :apache ], false)
+          HostManager.log 'Updating Apache configuration'
 
           # Make sure the document root is set and sanitized
           httpd_options['document_root'] = '' if httpd_options['document_root'].nil?
@@ -70,6 +78,7 @@ module ElasticBeanstalk
           end
 
           # Write the vhosts information to a file
+          Event.store(:apache, 'Writing Apache application configuration', :info, [ :milestone, :apache ], false)
           vhosts_file = ::File.open('/etc/httpd/sites/application', 'w') do |file|
           file.puts <<-VHOSTS
 NameVirtualHost *:80
@@ -115,6 +124,7 @@ VHOSTS
 
           if ($?.exitstatus != 0 || output =~ /FAILED/)
             HostManager.log 'Apache failed to restart'
+            HostManager.log output
             Event.store(:apache, 'Apache failed to restart', :critical, [ :apache ])
           else
             # Log event for Apache restart completion
@@ -124,9 +134,7 @@ VHOSTS
 
           ElasticBeanstalk::HostManager.log(httpd_options)
         end
-
       end
-
     end
   end
 end
