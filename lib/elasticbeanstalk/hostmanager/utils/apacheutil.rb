@@ -53,8 +53,16 @@ module ElasticBeanstalk
         def self.restart
           Event.store(:apache, 'Restarting Apache', :info, [ :milestone, :apache ], false)
           HostManager.log 'Restarting Apache'
-          stop
-          start
+          output = `/usr/bin/sudo /etc/init.d/httpd graceful`
+
+          # Check the last line of the response
+          if ($?.exitstatus != 0 || output.lines.to_a.last =~ /FAILED/)
+            HostManager.log 'Apache failed to restart'
+            Event.store(:apache, 'Apache failed to restart', :critical, [ :apache ])
+          else
+            HostManager.log 'Apache restarted'
+            Event.store(:apache, 'Apache restarted', :info, [ :apache ], false)
+          end
         end
 
         def self.status
