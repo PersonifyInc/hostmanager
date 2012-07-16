@@ -66,7 +66,7 @@ module ElasticBeanstalk
 
                 # Restart Apache
                 logger.info('Restarting Apache')
-                ElasticBeanstalk::HostManager::Utils::ApacheUtil.stop
+                ElasticBeanstalk::HostManager::Utils::ApacheUtil.restart
 
                 logger.info('Update custom application config')
                 ElasticBeanstalk::HostManager::Applications::CustomApplication.update_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])
