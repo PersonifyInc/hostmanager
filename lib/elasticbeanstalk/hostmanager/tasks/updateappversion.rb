@@ -44,7 +44,7 @@ module ElasticBeanstalk
             end
             HostManager.log("Deploying version: #{new_app_version_info['s3version']}")
             app_version = Version.from_url(:application, @parameters['versionUrl'], @parameters)
-            ElasticBeanstalk::HostManager::DeploymentManager.deploy(ElasticBeanstalk::HostManager::Applications::PHPApplication.new(app_version))
+            ElasticBeanstalk::HostManager::DeploymentManager.deploy(ElasticBeanstalk::HostManager::Applications::CustomApplication.new(app_version))
             return generate_response(app_version.to_info)
           else
             raise "Hostmanager not in ready state."
