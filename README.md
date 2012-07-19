@@ -2,38 +2,40 @@
 
 ## Overview
 
-The goal of this project is to extend Amazon's HostManger application to support additional application types with custom configurations that are not enabled through the stock app.
+HostManager is a small Ruby app that runs on each EC2 node in an Elastic 
+Beanstalk environment.  It processes HTTP requests containing commands 
+from the Elastic Beanstalk service.  These commands include things like
+status checks, configuration updates, app deployments, etc.
 
-Why?  Because ElasticBeanstalk is a nice service and I want to use it with other application stacks, many of which will never be supported by Amazon directly.
+The goal of this project is to extend Amazon's HostManger application to 
+support additional application types with custom configurations that are 
+not enabled through the stock app.
 
-When this is finished, you should be able to drop it in to any existing Amazon Linux AMI and, with a few small tweaks to the environment config, be up and running.
+Why?  Because ElasticBeanstalk is a nice service and I want to use it 
+with other application stacks, many of which will never be supported 
+by Amazon directly.
 
 ## Project Organization
 
-Stock HostManager basically just supports a webroot directory.  This extended version supports several directories in the application source:
-
-- webroot
-	(your application source)
-
-- config
-	(various config files for HostManager)
-
-- (additional options depending on supported platforms)
+Stock HostManager basically just supports a webroot directory.  This 
+extended version supports completely custom configurations by giving YOU 
+control over the deployment process.  All you need to do is ship your 
+application with a config directory filled with custom hooks for deployment
+and startup/shutdown of custom server processes.
 
 ## Platform Support
 
-The restructuring of this code should enable the support of any arbitrary application stack, but it will ship with the following included by default:
-
-- Python (wsgi)
-- Python (tornadio)
-- Wowza Media Server
-- PHP (obviously)
+Anything!  Well, sort of.  The default build is still designed to work with 
+Apache running on port 80.  This is *required* because we need to proxy the 
+Elastic Beanstalk HTTP requests to the HostManager application, which is 
+running on a higher port.  It should be pretty easy to replace Apache with
+another webserver, like nginx, if that's desired.
 
 ## Your Application
 
 A basic application should consist of the following:
 
-- config
+- beanstalk
 	- deploy.sh (copy files, fix permissions, etc.)
 	- post-deploy.sh (optional)
 	- config.sh (optional, updates custom config vars)
@@ -41,7 +43,12 @@ A basic application should consist of the following:
 	- startup.sh (start app servers)
 - application source (anything!)
 
-## Installing custom HostManager
+There's an example included that demonstrates deploying a simple PHP
+sample application - basically the same one that AWS uses.  You can use
+this as a foundation for deploying other custom apps.
+
+## Installing custom HostManager package
+
 1. Launch an existing Beanstalk AMI in EC2 (NOT THROUGH BEANSTALK)
 2. Zip up this directory
 3. Use wget or scp to move it to your server
