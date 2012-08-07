@@ -214,10 +214,13 @@ END_DEPLOY_SCRIPT
         end
 
         def post_deploy
-		# Update app config (in case the config scripts changed)
-		HostManager.log 'Post Deloy: Update app config'
-		CustomApplication.update_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])
-        	CustomApplication.restart
+			# Update app config (in case the config scripts changed)
+			HostManager.log 'Post Deloy: Update app config'
+			CustomApplication.update_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])
+			CustomApplication.restart
+			# Restart Apache
+			logger.info('Restarting Apache')
+			ElasticBeanstalk::HostManager::Utils::ApacheUtil.restart
         end
 
       end # CustomApplication class
