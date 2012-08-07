@@ -64,12 +64,12 @@ module ElasticBeanstalk
                 logger.info('Configuration options passed to the container')
                 ElasticBeanstalk::HostManager.log(ElasticBeanstalk::HostManager.config.to_s)
 
+                logger.info('Update custom application config')
+                ElasticBeanstalk::HostManager::Applications::CustomApplication.update_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])
+
                 # Restart Apache
                 logger.info('Restarting Apache')
                 ElasticBeanstalk::HostManager::Utils::ApacheUtil.restart
-
-                logger.info('Update custom application config')
-                ElasticBeanstalk::HostManager::Applications::CustomApplication.update_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])
 
                 # Restart app servers
                 ElasticBeanstalk::HostManager::Applications::CustomApplication.restart
