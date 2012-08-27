@@ -41,28 +41,18 @@ ElasticBeanstalk::HostManager.config.api_versions << '2011-08-29'
 # that were made available from the instance bootstrap.
 ElasticBeanstalk::HostManager::Server.register_post_init_block {
 
-  ElasticBeanstalk::HostManager.log 'Writing environment config'
-  ElasticBeanstalk::HostManager::Utils::PHPUtil.write_sdk_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])
-
-  ElasticBeanstalk::HostManager.log 'Updating php.ini options'
-  ElasticBeanstalk::HostManager::Utils::PHPUtil.update_php_ini(ElasticBeanstalk::HostManager.config.container['Php.ini Settings'])
-
-  ElasticBeanstalk::HostManager.log 'Updating Apache options'
-  ElasticBeanstalk::HostManager::Utils::ApacheUtil.update_httpd_conf(ElasticBeanstalk::HostManager.config.container['Php.ini Settings'])
+  ElasticBeanstalk::HostManager::Applications::CustomApplication.ensure_configuration
 
   # Deploy app or just startup app server.
   application = ElasticBeanstalk::HostManager::Applications::CustomApplication.new(ElasticBeanstalk::HostManager.config.application_version)
   if ElasticBeanstalk::HostManager::DeploymentManager.should_deploy(application)
+    application.mark_in_initialization
     ElasticBeanstalk::HostManager.log("Starting initial version deployment.")
     ElasticBeanstalk::HostManager::DeploymentManager.deploy(application)
-    ElasticBeanstalk::HostManager::Utils::BluepillUtil.start_target("httpd")
   else
-    ElasticBeanstalk::HostManager.log("Version already deployed. Starting tomcat.")
+    ElasticBeanstalk::HostManager.log("Version already deployed. Starting Apache.")
     ElasticBeanstalk::HostManager::Utils::BluepillUtil.start_target("httpd")
   end
-
-  ElasticBeanstalk::HostManager.log 'Update custom application config'
-  ElasticBeanstalk::HostManager::Applications::CustomApplication.update_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])
 
   # Start application servers
   begin

@@ -19,61 +19,44 @@ module ElasticBeanstalk
     module Utils
 
       class ApacheUtil
-        def self.start
-          # Log event for Apache start
-          Event.store(:apache, 'Starting Apache', :info, [ :milestone, :apache ], false)
-          HostManager.log 'Starting Apache'
+        
+        def self.log(msg, *args)
+          HostManager.log msg
+          Event.store(:apache, msg, *args)
+        end
 
-          output = `/usr/bin/sudo /etc/init.d/httpd start`
+        def self.execute_httpd_cmd(verb, status_regex = /FAILED/)
+          log("Executing Apache Command: #{verb}", :info, [ :milestone, :apache ], false)
 
-          if ($?.exitstatus != 0 || output =~ /FAILED/)
-            HostManager.log 'Apache failed to start'
-            Event.store(:apache, 'Apache failed to start', :critical, [ :apache ])
+          output = `/usr/bin/sudo /etc/init.d/httpd #{verb}`
+
+          if ($?.exitstatus != 0 || output =~ status_regex)
+            log("Apache #{verb} FAILED", :critical, [ :apache ])
           else
-            # Log event for Apache startup completion
-            HostManager.log 'Apache started'
-            Event.store(:apache, 'Apache startup complete', :info, [ :milestone, :apache ], false)
+            log("Apache #{verb} succeeded", :info, [ :milestone, :apache ], false)
           end
+        end
+
+        def self.start
+          execute_httpd_cmd('start')
         end
 
         def self.stop
-          Event.store(:apache, 'Stopping Apache', :info, [ :milestone, :apache ], false)
-          HostManager.log 'Stopping Apache'
-          output = `/usr/bin/sudo /etc/init.d/httpd stop`
-
-          if ($?.exitstatus != 0 || output =~ /FAILED/)
-            HostManager.log 'Apache failed to stop'
-            Event.store(:apache, 'Apache failed to stop', :critical, [ :apache ])
-          else
-            HostManager.log 'Apache stopped'
-            Event.store(:apache, 'Apache stopped', :info, [ :apache ], false)
-          end
+          execute_httpd_cmd('stop')
         end
 
         def self.restart
-          Event.store(:apache, 'Restarting Apache', :info, [ :milestone, :apache ], false)
-          HostManager.log 'Restarting Apache'
-          output = `/usr/bin/sudo /etc/init.d/httpd graceful`
-
-          # Check the last line of the response
-          if ($?.exitstatus != 0 || output.lines.to_a.last =~ /FAILED/)
-            HostManager.log 'Apache failed to restart'
-            Event.store(:apache, 'Apache failed to restart', :critical, [ :apache ])
-          else
-            HostManager.log 'Apache restarted'
-            Event.store(:apache, 'Apache restarted', :info, [ :apache ], false)
-          end
+          execute_httpd_cmd('graceful', /Starting httpd\: \[FAILED\]/)
         end
 
         def self.status
           `/usr/bin/sudo /etc/init.d/httpd status`.chomp
         end
 
-        def self.update_httpd_conf(httpd_options)
+        def self.update_httpd_conf(httpd_options = nil)
           return if httpd_options.nil?
 
-          Event.store(:apache, 'Updating Apache configuration', :info, [ :milestone, :apache ], false)
-          HostManager.log 'Updating Apache configuration'
+          log('Updating Apache configuration', :info, [ :milestone, :apache ], false)
 
           # Make sure the document root is set and sanitized
           httpd_options['document_root'] = '' if httpd_options['document_root'].nil?
@@ -85,8 +68,7 @@ module ElasticBeanstalk
             docroot.gsub!(/(?:\.\.\/|\.\/|[^\w\.\-\~\/])/, '_')
           end
 
-          # Write the vhosts information to a file
-          Event.store(:apache, 'Writing Apache application configuration', :info, [ :milestone, :apache ], false)
+          log('Writing Apache application configuration', :info, [ :milestone, :apache ], false)
           vhosts_file = ::File.open('/etc/httpd/sites/application', 'w') do |file|
           file.puts <<-VHOSTS
 NameVirtualHost *:80

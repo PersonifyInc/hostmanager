@@ -22,7 +22,7 @@ module ElasticBeanstalk
 
       class CustomApplication < Application
         class << self
-          attr_reader :deploy_dir, :pre_deploy_script, :deploy_script, :post_deploy_script, :error_start_index, :config_dir
+          attr_reader :is_initialization_phase, :deploy_dir, :pre_deploy_script, :deploy_script, :post_deploy_script, :error_start_index, :config_dir
         end
 
         # Directories, etc
@@ -35,21 +35,7 @@ module ElasticBeanstalk
         # For error messages, get the last 512 chars of the deployment output
         @error_start_index = -512
 
-        # Run app server startup script
-        def self.start
-        	HostManager.log "Starting application servers..."
-        	# Execute script, redirect stderr to stdout
-            output = `#{CustomApplication.config_dir}/startup.sh`
-
-			if ($?.exitstatus != 0 || output =~ /FAILED/)
-				HostManager.log 'Application servers failed to start'
-				Event.store(:apache, 'Application servers failed to start', :critical, [ :apache ])
-			else
-				# Log event for Apache startup completion
-				HostManager.log 'Application servers started'
-				Event.store(:apache, 'Application servers startup complete', :info, [ :milestone, :apache ], true)
-			end
-        end
+        @is_initialization_phase = false
 
         # Run app server shutdown script
         def self.stop
@@ -78,142 +64,138 @@ module ElasticBeanstalk
         	if ::File.exists?("#{CustomApplication.config_dir}/config.sh")
         		output = `/usr/bin/sudo #{CustomApplication.config_dir}/config.sh #{var_string}`
         		HostManager.log output
+        	end
 		end
+
+        def self.ensure_configuration
+          HostManager.log 'Writing environment config'
+          ElasticBeanstalk::HostManager::Utils::PHPUtil.write_sdk_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])
+
+          HostManager.log 'Updating php.ini options'
+          ElasticBeanstalk::HostManager::Utils::PHPUtil.update_php_ini(ElasticBeanstalk::HostManager.config.container['Php.ini Settings'])
+
+          HostManager.log 'Updating Apache options'
+          ElasticBeanstalk::HostManager::Utils::ApacheUtil.update_httpd_conf(ElasticBeanstalk::HostManager.config.container['Php.ini Settings'])
+        	
+          HostManager.log 'Update custom application config'
+ 	 	  update_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])
+        end
+
+        def mark_in_initialization
+          @is_initialization_phase = true
+        end
+
+        # Run app server startup script
+        def self.start
+        	HostManager.log "Starting application servers..."
+        	# Execute script, redirect stderr to stdout
+            output = `#{CustomApplication.config_dir}/startup.sh`
+
+			if ($?.exitstatus != 0 || output =~ /FAILED/)
+				HostManager.log 'Application servers failed to start'
+				Event.store(:apache, 'Application servers failed to start', :critical, [ :apache ])
+			else
+				# Log event for Apache startup completion
+				HostManager.log 'Application servers started'
+				Event.store(:apache, 'Application servers startup complete', :info, [ :milestone, :apache ], true)
+			end
         end
 
         def pre_deploy
+          HostManager.log "Starting pre-deployment."
+
           application_version_url = @version_info.to_url
 
-          deploy_script_contents = <<-END_PRE_DEPLOY_SCRIPT
-#!/bin/bash
-set -e
+          HostManager.log "Re-building the Deployment Directory"
+          output = `/usr/bin/sudo /bin/rm -rf #{CustomApplication.deploy_dir}`
+          HostManager.log "Output: #{output}"
+          output = `/usr/bin/sudo /bin/mkdir -p #{CustomApplication.deploy_dir} 2>&1`
+          HostManager.log "Output: #{output}"
+          raise "Unable to create #{CustomApplication.deploy_dir}" unless File.directory?(CustomApplication.deploy_dir)
 
-function logmsg() {
-    echo $1
-    /usr/bin/logger $1
-}
+          HostManager.log "Changing owner, groups and permissions for the deployment directory."
+          output = `/usr/bin/sudo /bin/chown elasticbeanstalk:elasticbeanstalk #{CustomApplication.deploy_dir}`
+          HostManager.log "Output: #{output}"
+          output = `/usr/bin/sudo /bin/chmod -Rf 0777 #{CustomApplication.deploy_dir}`
+          HostManager.log "Output: #{output}"
 
-logmsg "Beginning pre-deployment"
-logmsg "Cleaning up deploy dir"
-/usr/bin/sudo /bin/rm -rf #{CustomApplication.deploy_dir}
-/bin/mkdir -p #{CustomApplication.deploy_dir}
+          HostManager.log "Downloading / Validating Application version #{@version_info.version} from #{application_version_url}"
+          output = `/usr/bin/time -f %e /usr/bin/wget -v --tries=10 --retry-connrefused -o #{CustomApplication.deploy_dir}/wget.log -O #{CustomApplication.deploy_dir}/application.zip "#{application_version_url}" 2>&1`
+          HostManager.log "Output: #{output}"
+          raise "Application download from #{application_version_url} failed" unless File.exists?("#{CustomApplication.deploy_dir}/application.zip")
 
-logmsg "Downloading #{application_version_url}"
-DOWNLOAD_TIME=`/usr/bin/time -f %e /usr/bin/wget -v --tries=10 --retry-connrefused -o #{CustomApplication.deploy_dir}/wget.log -O #{CustomApplication.deploy_dir}/application.zip "#{application_version_url}" 2>&1`
-DOWNLOAD_RATE=`grep -o '(\\(.*\\/s\\))' #{CustomApplication.deploy_dir}/wget.log | sed 's/[\\(\\)]//g'`
+          output = output.to_f * 1000
+          HostManager.log "Application Download Time (ms): #{output}"
+          HostManager.state.context[:metric].timings['AppDownloadTime'] = output unless HostManager.state.context[:metric].nil?
 
-logmsg "Checking application digest"
-/usr/bin/openssl dgst -md5 #{CustomApplication.deploy_dir}/application.zip > #{CustomApplication.deploy_dir}/application_digest
-/bin/echo 'MD5(#{CustomApplication.deploy_dir}/application.zip)= #{@version_info.digest}' > #{CustomApplication.deploy_dir}/expected_digest
-/usr/bin/cmp #{CustomApplication.deploy_dir}/application_digest #{CustomApplication.deploy_dir}/expected_digest
-logmsg "Digest matched"
-
-echo "{\\"AppDownloadTime\\":\\"$DOWNLOAD_TIME\\",\\"AppDownloadRate\\":\\"$DOWNLOAD_RATE\\"}"
-END_PRE_DEPLOY_SCRIPT
-
-          HostManager.log "Starting PHP pre-deployment: Application version #{@version_info.version} from #{application_version_url}"
-
-          begin
-            ::File.open(CustomApplication.pre_deploy_script, 'w') { |f|
-              f.write(deploy_script_contents)
-            }
-
-            ::File.chmod(0755, CustomApplication.pre_deploy_script)
-
-            # Execute script, redirect stderr to stdout
-            output = `#{CustomApplication.pre_deploy_script} 2>&1`
-
-            # Raise an exception if script failed
-            raise 'Application pre-deployment script failed' if ($?.exitstatus != 0)
-
-            # Record deployment metrics from script
-            metrics = JSON.parse(output.split("\n")[-1].chomp)
-
-            # Convert download time from seconds to milliseconds and store metric
-            unless (metrics['AppDownloadTime'].nil?)
-              app_download_time = metrics['AppDownloadTime'].to_f * 1000
-
-              HostManager.log "Application Download Time (ms): #{app_download_time}"
-
-              HostManager.state.context[:metric].timings['AppDownloadTime'] =  app_download_time unless HostManager.state.context[:metric].nil?
-            end
-
-            # Rate could be Mb/s, Kb/s, etc, convert all to Kb/s
-            unless (metrics['AppDownloadRate'].nil? || metrics['AppDownloadRate'][/[0-9]*/].nil?)
-              app_download_rate = metrics['AppDownloadRate'][/[0-9]*/].to_f
-              app_download_rate = app_download_rate * 1024 if metrics['AppDownloadRate'] =~ /MB/
-
-              HostManager.log "Application Download Rate (kb/s): #{app_download_rate}"
-
-              HostManager.state.context[:metric].counters['AppDownloadRate'] = app_download_rate unless HostManager.state.context[:metric].nil?
-            end
-          # Capture any Errno errors from the ::File operations
-          rescue SystemCallError
-            ex = ElasticBeanstalk::HostManager::DeployException.new('Failed to create application pre-deployment script')
-            raise ex
-          # All other exceptions, including the raised non-zero exit one go here
-          rescue
-            ex = ElasticBeanstalk::HostManager::DeployException.new("Failed application version #{@version_info.version} pre-deployment: #{$!}")
-            ex.output = output[CustomApplication.error_start_index..-1] || output
-            raise ex
+          output = `grep -o '(\\(.*\\/s\\))' #{CustomApplication.deploy_dir}/wget.log | sed 's/[\\(\\)]//g' 2>&1` if File.exists?("#{CustomApplication.deploy_dir}/wget.log")
+          if output =~ /([0-9]+(?:\.[0-9]*))\s+(KB|MB|GB).*/
+            output = $~[1].to_f
+            output *= 1024 if $~[2] == 'MB' || $~[2] == 'GB'
+            output *= 1024 if $~[2] == 'GB'
+            output = output.to_i
+            HostManager.log "Application Download Rate (kb/s): #{output}"
+            HostManager.state.context[:metric].counters['AppDownloadRate'] = output unless HostManager.state.context[:metric].nil?
+          elsif
+            HostManager.log "Application Download Rate could not be determined: #{output}"
           end
+
+          output = `/usr/bin/openssl dgst -md5 #{CustomApplication.deploy_dir}/application.zip 2>&1`
+          output = $~[1] if output =~ /MD5\([^\)]+\)= (.*)/
+          HostManager.log "Output: #{output}"
+          raise "Application digest (#{output}) does not match expected digest (#{@version_info.digest})" unless output == @version_info.digest
+
+        rescue
+          HostManager.log("Version #{@version_info.version} PRE-DEPLOYMENT FAILED: #{$!}\n#{$@.join('\n')}")
+          ex = ElasticBeanstalk::HostManager::DeployException.new("Version #{@version_info.version} pre-deployment failed: #{$!}")
+          ex.output = output || ''
+          raise ex
         end
 
         def deploy
-          deploy_script_contents = <<-END_DEPLOY_SCRIPT
-#!/bin/bash
-set -e
+          HostManager.log "Starting deployment."
 
-function logmsg() {
-    echo $1
-    /usr/bin/logger $1
-}
+          HostManager.log "Changing owner, groups and permissions for the deployment directory."
+          output = `/usr/bin/sudo /bin/chown elasticbeanstalk:elasticbeanstalk #{CustomApplication.deploy_dir}`
+          HostManager.log "Output: #{output}"
+          output = `/usr/bin/sudo /bin/chmod -Rf 0777 #{CustomApplication.deploy_dir}`
+          HostManager.log "Output: #{output}"
 
-logmsg "Unzipping application"
-/bin/mkdir -p #{CustomApplication.deploy_dir}/application
-/bin/mkdir -p #{CustomApplication.deploy_dir}/backup
+          HostManager.log "Creating #{CustomApplication.deploy_dir}/application and #{CustomApplication.deploy_dir}/backup"
+          output = `/bin/mkdir -p #{CustomApplication.deploy_dir}/application 2>&1`
+          HostManager.log "Output: #{output}"
+          raise "Unable to create #{CustomApplication.deploy_dir}/application" if $?.exitstatus != 0
+          
+          output = `/bin/mkdir -p #{CustomApplication.deploy_dir}/backup 2>&1`
+          HostManager.log "Output: #{output}"
+          raise "Unable to create #{CustomApplication.deploy_dir}/backup" if $?.exitstatus != 0
 
-set +e
-/usr/bin/unzip -o -qq #{CustomApplication.deploy_dir}/application.zip -d #{CustomApplication.deploy_dir}/application
-if [ "$?" -ne 0 -a "$?" -ne 1 ]; then logmsg "Failed to unzip application"; exit 1; fi
-set -e
+		  HostManager.log "Unzipping #{CustomApplication.deploy_dir}/application.zip to #{CustomApplication.deploy_dir}/application"
+          output = `/usr/bin/unzip -o #{CustomApplication.deploy_dir}/application.zip -d #{CustomApplication.deploy_dir}/application 2>&1`
+          HostManager.log "Output: #{output}"
+          raise "Failed to unzip #{CustomApplication.deploy_dir}/application.zip" if $?.exitstatus != 0
 
-/usr/bin/sudo chmod -R +x #{CustomApplication.config_dir}
-logmsg "Running custom deploy script..."
-/usr/bin/sudo #{CustomApplication.config_dir}/deploy.sh
+          HostManager.log "Making custom config files executable"
+          output = `/usr/bin/sudo /bin/chmod -R +x #{CustomApplication.config_dir} 2>&1`
+          HostManager.log "Output: #{output}"
+          raise "Unable to set mode of #{CustomApplication.web_root_dir}" if $?.exitstatus != 0
+          
+          HostManager.log "Running custom deployment script"
+          output = `/usr/bin/sudo #{CustomApplication.config_dir}/deploy.sh 2>&1`
+          HostManager.log "Output: #{output}"
+          raise "Custom deployment script failed." if $?.exitstatus != 0
 
-logmsg "Deployment complete"
-END_DEPLOY_SCRIPT
+          ElasticBeanstalk::HostManager::Utils::BluepillUtil.start_target("httpd") if @is_initialization_phase
 
-          HostManager.log "Starting deployment: Application version #{@version_info.version}"
-
-          begin
-            ::File.open(CustomApplication.deploy_script, 'w') { |f|
-              f.write(deploy_script_contents)
-            }
-
-            ::File.chmod(0755, CustomApplication.deploy_script)
-
-            # Execute script, redirect stderr to stdout
-            output = `#{CustomApplication.deploy_script} 2>&1`
-
-            # Raise an exception if script failed
-            raise 'Application deployment script failed' if ($?.exitstatus != 0)
-
-            HostManager.log 'Application successfully deployed'
-          # Capture any Errno errors from the ::File operations
-          rescue SystemCallError
-            ex = ElasticBeanstalk::HostManager::DeployException.new('Failed to create application deployment script')
-            raise ex
-          # All other exceptions, including the raised non-zero exit one go here
-          rescue
-            ex = ElasticBeanstalk::HostManager::DeployException.new("Failed to deploy application version #{@version_info.version}: #{$!}")
-            ex.output = output[CustomApplication.error_start_index..-1] || output
-            raise ex
-          end
+        rescue
+          HostManager.log("Version #{@version_info.version} DEPLOYMENT FAILED: #{$!}\n#{$@.join('\n')}")
+          ex = ElasticBeanstalk::HostManager::DeployException.new("Version #{@version_info.version} deployment failed: #{$!}")
+          ex.output = output || ''
+          raise ex
         end
 
         def post_deploy
+        	HostManager.log "Starting post-deployment."
 			# Update app config (in case the config scripts changed)
 			HostManager.log 'Post Deloy: Update app config'
 			CustomApplication.update_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])

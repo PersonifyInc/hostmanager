@@ -52,20 +52,10 @@ module ElasticBeanstalk
                   ElasticBeanstalk::HostManager.config.elasticbeanstalk['HostManager']['Change Severity'] &&
                   ElasticBeanstalk::HostManager.config.elasticbeanstalk['HostManager']['Change Severity'].downcase == 'medium')
 
-            		logger.info('Writing environment config')
-            		ElasticBeanstalk::HostManager::Utils::PHPUtil.write_sdk_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])
-
-                logger.info('Updating php.ini options')
-                ElasticBeanstalk::HostManager::Utils::PHPUtil.update_php_ini(ElasticBeanstalk::HostManager.config.container['Php.ini Settings'])
-
-                logger.info('Updating Apache options')
-                ElasticBeanstalk::HostManager::Utils::ApacheUtil.update_httpd_conf(ElasticBeanstalk::HostManager.config.container['Php.ini Settings'])
+            	ElasticBeanstalk::HostManager::Applications::PHPApplication.ensure_configuration
 
                 logger.info('Configuration options passed to the container')
                 ElasticBeanstalk::HostManager.log(ElasticBeanstalk::HostManager.config.to_s)
-
-                logger.info('Update custom application config')
-                ElasticBeanstalk::HostManager::Applications::CustomApplication.update_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])
 
                 # Restart Apache
                 logger.info('Restarting Apache')
@@ -75,10 +65,10 @@ module ElasticBeanstalk
                 ElasticBeanstalk::HostManager::Applications::CustomApplication.restart
               end
             rescue
-              error_msg = "Failed to update config from #{config_ver_url}: #{$!}"
-              backtrace = $!.backtrace.join("\n")
+              error_msg = "Failed to update config from #{config_ver_url}: #{$!}\n#{$@.join("\n")}"
 
-              logger.warn("#{error_msg}\n#{backtrace}")
+              logger.warn(error_msg)
+              ElasticBeanstalk::HostManager.log error_msg
               Event.store(class_name, error_msg, :warn, [ :configuration, :update ])
             ensure
               ElasticBeanstalk::HostManager.state.transition_to(:ready) { |state|
