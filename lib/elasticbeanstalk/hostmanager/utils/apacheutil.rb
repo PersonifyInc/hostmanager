@@ -104,23 +104,7 @@ NameVirtualHost *:80
 VHOSTS
           end
 
-          unless ::File.exists?('/etc/httpd/sites/application')
-            HostManager.log "Apache vhosts configuration file failed to be written"
-            Event.store(:apache, 'Apache vhosts configuration file failed to be written', :critical, [ :apache ])
-          end
-
-          `sudo apachectl -k stop` # Kill other Apache processes that sometimes interfere
-          output = `/usr/bin/sudo /etc/init.d/httpd restart`
-
-          if ($?.exitstatus != 0 || output =~ /FAILED/)
-            HostManager.log 'Apache failed to restart'
-            HostManager.log output
-            Event.store(:apache, 'Apache failed to restart', :critical, [ :apache ])
-          else
-            # Log event for Apache restart completion
-            HostManager.log 'Apache restarted'
-            Event.store(:apache, 'Apache restart complete', :info, [ :milestone, :apache ], false)
-          end
+          log('Apache vhosts configuration file failed to be written', :critical, [ :apache ]) unless ::File.exists?('/etc/httpd/sites/application')
 
           ElasticBeanstalk::HostManager.log(httpd_options)
         end

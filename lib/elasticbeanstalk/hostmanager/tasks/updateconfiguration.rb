@@ -40,11 +40,11 @@ module ElasticBeanstalk
             ElasticBeanstalk::HostManager.state.transition_to(:updating_configuration, :metric => ElasticBeanstalk::HostManager::Metric.create('UpdateConfiguration'))
 
             begin
-              logger.info("Retrieving config file from #{config_ver_url}")
+              ElasticBeanstalk::HostManager.log "Retrieving config file from #{config_ver_url}"
 
               ElasticBeanstalk::HostManager.config.sync_config(config_ver)
 
-              logger.info('Configuration updated')
+              ElasticBeanstalk::HostManager.log 'Configuration updated'
               Event.store(class_name, 'Configuration updated', :info, [ :configuration, :update ], false)
 
               # Restart app server if the change severity is set ot medium
@@ -52,13 +52,12 @@ module ElasticBeanstalk
                   ElasticBeanstalk::HostManager.config.elasticbeanstalk['HostManager']['Change Severity'] &&
                   ElasticBeanstalk::HostManager.config.elasticbeanstalk['HostManager']['Change Severity'].downcase == 'medium')
 
-            	ElasticBeanstalk::HostManager::Applications::PHPApplication.ensure_configuration
+                ElasticBeanstalk::HostManager::Applications::PHPApplication.ensure_configuration
 
-                logger.info('Configuration options passed to the container')
-                ElasticBeanstalk::HostManager.log(ElasticBeanstalk::HostManager.config.to_s)
+                ElasticBeanstalk::HostManager.log "Configuration options passed to the container: #{ElasticBeanstalk::HostManager.config}"
 
                 # Restart Apache
-                logger.info('Restarting Apache')
+                ElasticBeanstalk::HostManager.log 'Restarting Apache'
                 ElasticBeanstalk::HostManager::Utils::ApacheUtil.restart
 
                 # Restart app servers

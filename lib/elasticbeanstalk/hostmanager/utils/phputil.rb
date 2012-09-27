@@ -55,11 +55,11 @@ module ElasticBeanstalk
 
           env_props.each do |key, val|
             if key == 'AWS_ACCESS_KEY_ID'
-              new_options_section << "aws.access_key = #{val}"
+              new_options_section << "aws.access_key = \"#{val}\""
             elsif key == 'AWS_SECRET_KEY'
-              new_options_section << "aws.secret_key = #{val}"
+              new_options_section << "aws.secret_key = \"#{val}\""
             else
-              new_options_section << "aws.#{key.downcase} = #{val}"
+              new_options_section << "aws.#{key.downcase} = \"#{val}\""
             end
           end
 
