@@ -185,8 +185,6 @@ module ElasticBeanstalk
           HostManager.log "Output: #{output}"
           raise "Custom deployment script failed." if $?.exitstatus != 0
 
-          ElasticBeanstalk::HostManager::Utils::BluepillUtil.start_target("httpd") if @is_initialization_phase
-
         rescue
           HostManager.log("Version #{@version_info.version} DEPLOYMENT FAILED: #{$!}\n#{$@.join('\n')}")
           ex = ElasticBeanstalk::HostManager::DeployException.new("Version #{@version_info.version} deployment failed: #{$!}")
@@ -200,9 +198,15 @@ module ElasticBeanstalk
 			HostManager.log 'Post Deloy: Update app config'
 			CustomApplication.update_config(ElasticBeanstalk::HostManager.config.application['Environment Properties'])
 			CustomApplication.restart
-			# Restart Apache
-			logger.info('Restarting Apache')
-			ElasticBeanstalk::HostManager::Utils::ApacheUtil.restart
+
+			if @is_initialization_phase
+				HostManager.log 'Start Apache for first time'
+				ElasticBeanstalk::HostManager::Utils::BluepillUtil.start_target("httpd") 
+			else
+				# Restart Apache
+				HostManager.log 'Restarting Apache'
+				ElasticBeanstalk::HostManager::Utils::ApacheUtil.restart
+			end
         end
 
       end # CustomApplication class
