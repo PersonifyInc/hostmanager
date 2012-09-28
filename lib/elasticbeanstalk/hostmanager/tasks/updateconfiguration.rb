@@ -52,7 +52,7 @@ module ElasticBeanstalk
                   ElasticBeanstalk::HostManager.config.elasticbeanstalk['HostManager']['Change Severity'] &&
                   ElasticBeanstalk::HostManager.config.elasticbeanstalk['HostManager']['Change Severity'].downcase == 'medium')
 
-                ElasticBeanstalk::HostManager::Applications::PHPApplication.ensure_configuration
+                ElasticBeanstalk::HostManager::Applications::CustomApplication.ensure_configuration
 
                 ElasticBeanstalk::HostManager.log "Configuration options passed to the container: #{ElasticBeanstalk::HostManager.config}"
 
