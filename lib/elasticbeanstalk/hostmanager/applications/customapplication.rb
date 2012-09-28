@@ -178,7 +178,7 @@ module ElasticBeanstalk
           HostManager.log "Making custom config files executable"
           output = `/usr/bin/sudo /bin/chmod -R +x #{CustomApplication.config_dir} 2>&1`
           HostManager.log "Output: #{output}"
-          raise "Unable to set mode of #{CustomApplication.web_root_dir}" if $?.exitstatus != 0
+          raise "Unable to set mode of #{CustomApplication.config_dir}" if $?.exitstatus != 0
           
           HostManager.log "Running custom deployment script"
           output = `/usr/bin/sudo #{CustomApplication.config_dir}/deploy.sh 2>&1`
