@@ -181,7 +181,7 @@ module ElasticBeanstalk
           raise "Unable to set mode of #{CustomApplication.config_dir}" if $?.exitstatus != 0
           
           HostManager.log "Running custom deployment script"
-          output = `/usr/bin/sudo #{CustomApplication.config_dir}/deploy.sh 2>&1`
+          output = `/usr/bin/sudo #{CustomApplication.config_dir}/deploy.sh #{@version_info.version} 2>&1`
           HostManager.log "Output: #{output}"
           raise "Custom deployment script failed." if $?.exitstatus != 0
 
