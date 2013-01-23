@@ -29,6 +29,7 @@ require 'elasticbeanstalk/hostmanager/utils/phputil'
 
 # Setup log dir monitor
 ElasticBeanstalk::HostManager::DaemonManager.instance.add(ElasticBeanstalk::HostManager::LogDirectoryMonitor.new('/var/log/httpd', 'gz\Z'))
+ElasticBeanstalk::HostManager::DaemonManager.instance.add(ElasticBeanstalk::HostManager::LogDirectoryMonitor.new('/var/log/ebapp', 'gz\Z'))
 
 # Set the container type
 ElasticBeanstalk::HostManager.config.container_type = :php
